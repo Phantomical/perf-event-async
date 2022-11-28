@@ -172,76 +172,77 @@ trait SamplePoll: Unpin {
   fn asyncfd(&mut self) -> &mut AsyncFd<Self::Inner>;
 
   fn poll_next_sample(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Record>> {
-    match self.asyncfd().poll_read_ready_mut(cx) {
-      Poll::Pending => Poll::Pending,
-      Poll::Ready(Err(e)) => panic!("polling asyncfd returned an error: {}", e),
-      Poll::Ready(Ok(mut guard)) => {
-        if let Some(record) = guard.get_inner_mut().next_record() {
-          return Poll::Ready(Some(record));
+    loop {
+      return match self.asyncfd().poll_read_ready_mut(cx) {
+        Poll::Pending => Poll::Pending,
+        Poll::Ready(Err(e)) => panic!("polling asyncfd returned an error: {}", e),
+        Poll::Ready(Ok(mut guard)) => {
+          if let Some(record) = guard.get_inner_mut().next_record() {
+            return Poll::Ready(Some(record));
+          }
+
+          let fd = guard.get_ref().as_raw_fd();
+
+          let mut pollfd = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+          };
+
+          // Need to use libc::poll to tell the difference between POLLIN and POLLHUP.
+          match unsafe { libc::poll(&mut pollfd, 1, 0) } {
+            // Poll indicates that no events are ready.
+            0 => {
+              guard.clear_ready();
+              Poll::Pending
+            }
+
+            // Got an edge-case error. Keep readiness and return pending and hope it'll be resolved
+            // with the next poll.
+            //
+            // Note that the only possible error cases for poll(2) are
+            // - EINTR  - transient and retrying will just work. Note that since we use a timeout of
+            //   0 this shouldn't be possible anyway.
+            // - EFAULT - the pointer passed to poll was invalid. This will never happen in the code
+            //   above.
+            // - EINVAL - allocating one new fd exceeds RLIMIT_NOFILE
+            // - ENOMEM - the kernel could not allocate memory for required data structures
+            //
+            // Neither of the last two are likely to ever happen so busy-waiting is probably a
+            // reasonable approach.
+            -1 => {
+              guard.retain_ready();
+              Poll::Pending
+            }
+
+            // The sampler was tracking a single other process and that process has exited.
+            //
+            // However, there may still be events in the sampler ring buffer so in this case we
+            // still need to check.
+            1 if pollfd.revents & libc::POLLHUP != 0 => {
+              guard.clear_ready();
+              Poll::Ready(guard.get_inner_mut().next_record())
+            }
+
+            // Somehow, the file descriptor has been closed. In this case, panic.
+            1 if pollfd.revents & libc::POLLNVAL != 0 => {
+              panic!("sampler file descriptor has been closed unexpectedly");
+            }
+
+            // Got POLLIN. This means that a message has arrived in the ringbuffer between the tokio
+            // read and our handling of the future. Preserve the readiness status and go back around
+            // to retry the poll.
+            1 => {
+              guard.retain_ready();
+              continue;
+            }
+
+            // poll returning anything other than -1, 0, or 1 means that something is seriously
+            // wrong.
+            _ => unreachable!(),
+          }
         }
-
-        let fd = guard.get_ref().as_raw_fd();
-
-        let mut pollfd = libc::pollfd {
-          fd,
-          events: libc::POLLIN,
-          revents: 0,
-        };
-
-        // Need to use libc::poll to tell the difference between
-        match unsafe { libc::poll(&mut pollfd, 1, 0) } {
-          // Poll indicates that no events are ready.
-          0 => {
-            guard.clear_ready();
-            Poll::Pending
-          }
-
-          // Got an edge-case error. Keep readiness and return pending and hope it'll be resolved
-          // with the next poll.
-          //
-          // Note that the only possible error cases for poll(2) are
-          // - EINTR  - transient and retrying will just work. Note that since we use a timeout of 0
-          //   this shouldn't be possible anyway.
-          // - EFAULT - the pointer passed to poll was invalid. This will never happen in the code
-          //   above.
-          // - EINVAL - allocating one new fd exceeds RLIMIT_NOFILE
-          // - ENOMEM - the kernel could not allocate memory for required data structures
-          //
-          // Neither of the last two are likely to ever happen so busy-waiting is probably a
-          // reasonable approach.
-          -1 => {
-            guard.retain_ready();
-            Poll::Pending
-          }
-
-          // The sampler was tracking a single other process and that process has exited.
-          //
-          // However, there may still be events in the sampler ring buffer so in this case we still
-          // need to check.
-          1 if pollfd.revents & libc::POLLHUP != 0 => {
-            let record = guard.get_inner_mut().next_record();
-            guard.clear_ready();
-            Poll::Ready(record)
-          }
-
-          // Somehow, the file descriptor has been closed. In this case, return None.
-          1 if pollfd.revents & libc::POLLNVAL != 0 => {
-            guard.retain_ready();
-            Poll::Ready(None)
-          }
-
-          // Got POLLIN. This means that a message has arrived in the ringbuffer between the tokio
-          // read and our handling of the future. We'll preserve the readiness status and return
-          // pending so we'll read it on the next poll cycle.
-          1 => {
-            guard.retain_ready();
-            Poll::Pending
-          }
-
-          // poll returning anything other than -1, 0, or 1 means that something is seriously wrong.
-          _ => unreachable!(),
-        }
-      }
+      };
     }
   }
 }
