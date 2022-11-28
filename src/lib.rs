@@ -152,26 +152,17 @@ impl AsRawFd for SamplerRef<'_> {
 
 trait SamplePollTarget: AsRawFd {
   fn next_record(&mut self) -> Option<Record>;
-  fn has_record(&self) -> bool;
 }
 
 impl SamplePollTarget for Sampler {
   fn next_record(&mut self) -> Option<Record> {
     self.next_record()
   }
-
-  fn has_record(&self) -> bool {
-    self.has_record()
-  }
 }
 
 impl<'a> SamplePollTarget for SamplerRef<'a> {
   fn next_record(&mut self) -> Option<Record> {
     self.0.next_record()
-  }
-
-  fn has_record(&self) -> bool {
-    self.0.has_record()
   }
 }
 
