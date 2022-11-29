@@ -1,0 +1,17 @@
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: deps
+      prefix-development: deps(dev)
+    
+
+  - package-ecosystem: github-actions
+    directory: "/"
+      interval: "weekly"
+    commit-message:
+      prefix: "workflows"
