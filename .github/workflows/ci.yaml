@@ -15,7 +15,10 @@ jobs:
     continue-on-error: ${{ !matrix.required }}
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@${{ matrix.channel }}
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.channel }}
+          override: true
       - uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
@@ -25,7 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
@@ -35,8 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
+          override: true
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
