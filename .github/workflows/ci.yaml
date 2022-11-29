@@ -47,6 +47,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
+          shared-key: build
           save-if: false
       - uses: actions-rs/clippy-check@v1
         with:
