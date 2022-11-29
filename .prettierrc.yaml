@@ -1,0 +1,4 @@
+# Used for configuring formatting for markdown files
+
+printWidth: 80
+proseWrap: always

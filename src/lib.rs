@@ -10,6 +10,73 @@
 //!
 //! Look at the docs for [`AsyncSamplerExt`] to see which extension methods are
 //! provided.
+//!
+//! # Gotchas
+//! By default, the [`Sampler`] is configured to only generate wakeup
+//! notifications when a [`SAMPLE`] event is generated. Or, on kernels before
+//! Linux 3.0, the default configuration will result in no wakeup notifications
+//! whatsoever.
+//!
+//! If you find that program is waiting when there are events present in the
+//! ringbuffer _and this is an issue_ then consider configuring the builder with
+//! one of:
+//!
+//! - [`wakeup_watermark`] - indicates the number of bytes written before a
+//!   notification happens. To get notified immediately when an event happens
+//!   set this to 1. If you want to have fewer notifications then you can use a
+//!   larger value. Note that setting this to be larger then the sampling
+//!   ringbuffer size will result in records being lost.
+//!
+//! - [`wakeup_events`] - the default here is equivalent to `wakeup_events(1)`.
+//!   If that results in your program waking up too much then you can increase
+//!   this value.
+//!
+//! These two settings are exclusive, though, so it is not possible to have both
+//! `wakeup_events(x)` and `wakeup_watermark(y)`.
+//!
+//! [`SAMPLE`]: perf_event::samples::RecordType::SAMPLE
+//! [`wakeup_watermark`]: perf_event::Builder::wakeup_watermark
+//! [`wakeup_events`]: perf_event::Builder::wakeup_events
+//!
+//! # Example
+//! This example shows how to create a sampler and block on the sampler until a
+//! new event is ready.
+//!
+//! ```
+//! # use perf_event::{Builder, Sampler};
+//! # use perf_event::events::Software;
+//! # use perf_event::samples::SampleType;
+//! use perf_event_async::AsyncSamplerExt;
+//! # use std::fs::File;
+//! # use std::io::Write;
+//! # use tokio::time::Duration;
+//!
+//! # #[tokio::main(flavor = "current_thread")]
+//! # async fn main() -> std::io::Result<()> {
+//! let mut sampler = Builder::new()
+//!   .kind(Software::DUMMY)
+//!   .observe_self()
+//!   .comm(true)
+//!   .wakeup_watermark(1)
+//!   .build_sampler(4096)?;
+//! sampler.enable()?;
+//!
+//! // Create an event in the sampler after waiting a bit
+//! # let handle =
+//! tokio::spawn(async {
+//!   tokio::time::sleep(Duration::from_millis(100)).await;
+//!   File::create("/proc/self/comm")?.write(b"example")?;
+//!
+//!   Ok(())
+//! });
+//!
+//! if let Some(record) = sampler.next_async().await {
+//!   println!("{:#?}", record);
+//! }
+//! #
+//! # handle.await?
+//! # }
+//! ```
 
 #![warn(missing_docs)]
 
@@ -290,3 +357,8 @@ impl IntoRawFd for RecordStream {
     self.into_inner().into_raw_fd()
   }
 }
+
+// Ensure that all code in the readme still runs.
+#[cfg(any(doc, test))]
+#[doc = include_str!("../README.md")]
+mod readme {}
