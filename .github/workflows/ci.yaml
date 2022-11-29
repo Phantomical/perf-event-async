@@ -7,12 +7,10 @@ jobs:
     strategy:
       matrix:
         channel: [stable, beta]
-        required: [true]
         
         include:
           - channel: nightly
-            required: false
-    continue-on-error: ${{ !matrix.required }}
+    continue-on-error: ${{ matrix.channel != "nightly" }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
@@ -32,6 +30,7 @@ jobs:
         with:
           toolchain: nightly
           override: true
+          components: rustfmt
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
