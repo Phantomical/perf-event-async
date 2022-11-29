@@ -42,8 +42,6 @@ async fn main() {
         .kind(Software::CPU_CLOCK)
         .observe_self()
         .comm(true)
-        .sample(SampleType::TID | SampleType::TIME | SampleType::CPU)
-        .sample_frequency(50)
         .wakeup_watermark(1)
         .build_sampler(8192)
         .expect("Failed to construct sampler");
