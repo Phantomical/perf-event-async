@@ -9,9 +9,9 @@ authors = [ "Phantomical" ]
 futures-core = "0.3.25"
 libc = "0.2.139"
 perf-event = { git = "https://github.com/phantomical/perf-event", branch = "sampling-work" }
-tokio = { version = "1.23.0", features = ["net"] }
+tokio = { version = "1.24.1", features = ["net"] }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
 nix = "0.26.1"
-tokio = { version = "1.23.0", features = ["full", "test-util"] }
+tokio = { version = "1.24.1", features = ["full", "test-util"] }
