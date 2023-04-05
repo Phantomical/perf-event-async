@@ -7,7 +7,7 @@ authors = [ "Phantomical" ]
 
 [dependencies]
 futures-core = "0.3.27"
-libc = "0.2.140"
+libc = "0.2.141"
 perf-event = { git = "https://github.com/phantomical/perf-event", branch = "sampling-work" }
 tokio = { version = "1.26.0", features = ["net"] }
 
